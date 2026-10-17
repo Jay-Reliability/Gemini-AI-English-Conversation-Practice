@@ -514,18 +514,29 @@ def render_study_view():
             user_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with st.spinner("Gemini is typing..."):
                 try:
-                    if st.session_state.chat_session is None:
-                        _, chat_sess = collector.create_gemini_chat_session(
+                    if st.session_state.chat_session is None or st.session_state.gemini_client is None:
+                        gem_client, chat_sess = collector.create_gemini_chat_session(
                             api_key=st.session_state.custom_api_key,
                             model_name=st.session_state.model_name,
                         )
+                        st.session_state.gemini_client = gem_client
                         st.session_state.chat_session = chat_sess
 
-                    result = collector.ask_gemini_tutor(
+                    output = collector.ask_gemini_tutor(
                         st.session_state.chat_session,
                         current_topic,
                         clean_user_text,
+                        api_key=st.session_state.custom_api_key,
+                        model_name=st.session_state.model_name,
                     )
+                    if isinstance(output, tuple):
+                        result, updated_session = output
+                        st.session_state.chat_session = updated_session
+                        if hasattr(updated_session, "_keep_alive_client"):
+                            st.session_state.gemini_client = getattr(updated_session, "_keep_alive_client")
+                    else:
+                        result = output
+
                     correction = result.get("correction", "")
                     gemini_reply = result.get("response", "")
                     gemini_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

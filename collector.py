@@ -207,27 +207,48 @@ def get_api_key(custom_api_key: Optional[str] = None) -> Optional[str]:
     return None
 
 
-def create_gemini_chat_session(api_key: Optional[str] = None, model_name: str = "gemini-2.5-pro"):
+def create_gemini_chat_session(
+    api_key: Optional[str] = None,
+    model_name: str = "gemini-2.5-pro",
+    history: Optional[ list ] = None,
+):
     """
     01_Gemini_API_Eng_Study.py와 동일하게 신규 Gemini SDK Client 및 Chat 세션을 생성합니다.
+    주의: google-genai SDK의 Client 객체는 참조가 사라져 가비지 컬렉션(GC)될 때
+    __del__()에서 내부 httpx 클라이언트를 close()하므로, chat_session 내부에
+    client 강한 참조(_keep_alive_client)를 함께 보관하여 연결 종료를 방지합니다.
     """
     resolved_key = get_api_key(api_key)
     if not resolved_key:
         raise ValueError("GOOGLE_API_KEY가 설정되어 있지 않습니다. .env 파일 또는 화면 좌측 설정에 API Key를 입력해 주세요.")
 
     client = genai.Client(api_key=resolved_key)
-    chat_session = client.chats.create(
-        model=model_name,
-        config=types.GenerateContentConfig(
+    chat_kwargs = {
+        "model": model_name,
+        "config": types.GenerateContentConfig(
             response_mime_type="application/json"
         ),
-    )
+    }
+    if history:
+        chat_kwargs["history"] = history
+
+    chat_session = client.chats.create(**chat_kwargs)
+    # Client 객체가 GC에 의해 소멸되어 httpx client가 닫히는 현상 원천 차단
+    setattr(chat_session, "_keep_alive_client", client)
     return client, chat_session
 
 
-def ask_gemini_tutor(chat_session, topic: str, user_message: str) -> Dict[str, str]:
+def ask_gemini_tutor(
+    chat_session,
+    topic: str,
+    user_message: str,
+    api_key: Optional[str] = None,
+    model_name: str = "gemini-2.5-pro",
+) -> Tuple[Dict[str, str], object]:
     """
     01_Gemini_API_Eng_Study.py의 GeminiThread.run()과 동일한 프롬프트 및 JSON 응답 구조를 수행합니다.
+    만약 네트워크 유휴 등으로 인해 client가 닫힌 경우(Cannot send a request, as the client has been closed),
+    기존 대화 히스토리를 유지한 채 새 세션을 재생성하여 자동 재시도합니다.
     """
     prompt = (
         f"Current Conversation Topic: {topic}\n"
@@ -237,7 +258,24 @@ def ask_gemini_tutor(chat_session, topic: str, user_message: str) -> Dict[str, s
         "2. 'response': Your natural conversational reply to the user's message."
     )
 
-    response = chat_session.send_message(prompt)
+    try:
+        response = chat_session.send_message(prompt)
+    except RuntimeError as e:
+        if "client has been closed" in str(e).lower():
+            prev_history = None
+            try:
+                prev_history = chat_session.get_history()
+            except Exception:
+                prev_history = None
+            _, chat_session = create_gemini_chat_session(
+                api_key=api_key,
+                model_name=model_name,
+                history=prev_history,
+            )
+            response = chat_session.send_message(prompt)
+        else:
+            raise
+
     raw_text = (response.text or "").strip()
 
     # 마크다운 코드블록이 포함된 경우 제거 방어 로직
@@ -258,7 +296,7 @@ def ask_gemini_tutor(chat_session, topic: str, user_message: str) -> Dict[str, s
     return {
         "correction": correction,
         "response": gemini_reply,
-    }
+    }, chat_session
 
 
 # ==========================================
