@@ -1,15 +1,37 @@
 import os
+import sys
 import io
 import json
 import textwrap
+import subprocess
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
-from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+
+# Streamlit Cloud에서 requirement.txt(단수형) 파일명만 업로드된 경우
+# 패키지가 자동 설치되지 않아 발생하는 ModuleNotFoundError 방지용 자동 설치 로직
+try:
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+    from dotenv import load_dotenv
+    from google import genai
+    from google.genai import types
+except ModuleNotFoundError:
+    subprocess.check_call(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "openpyxl>=3.1.2",
+            "google-genai>=1.0.0",
+            "python-dotenv>=1.0.0",
+        ]
+    )
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+    from dotenv import load_dotenv
+    from google import genai
+    from google.genai import types
 
 load_dotenv()
 
