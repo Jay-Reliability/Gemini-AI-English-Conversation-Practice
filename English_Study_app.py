@@ -168,6 +168,62 @@ def inject_custom_css(font_size: int):
             font-size: 16px;
             margin: 12px 0;
         }}
+
+        /* 모든 버튼(일반 버튼, 폼 제출 버튼, 다운로드 버튼, Primary/Secondary)의 배경색을 파란색(#007BFF)으로 통일 */
+        div.stButton > button,
+        div.stFormSubmitButton > button,
+        div.stDownloadButton > button,
+        button[kind="primary"],
+        button[kind="secondary"],
+        button[data-testid="stBaseButton-primary"],
+        button[data-testid="stBaseButton-secondary"] {{
+            background-color: #007BFF !important;
+            color: #FFFFFF !important;
+            border: 1px solid #0069D9 !important;
+            font-weight: bold !important;
+            border-radius: 6px !important;
+            transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out !important;
+        }}
+
+        /* 마우스 오버(Hover) 시 진한 파란색 */
+        div.stButton > button:hover,
+        div.stFormSubmitButton > button:hover,
+        div.stDownloadButton > button:hover,
+        button[kind="primary"]:hover,
+        button[kind="secondary"]:hover,
+        button[data-testid="stBaseButton-primary"]:hover,
+        button[data-testid="stBaseButton-secondary"]:hover {{
+            background-color: #0056B3 !important;
+            color: #FFFFFF !important;
+            border-color: #004085 !important;
+        }}
+
+        /* 클릭/포커스(Active/Focus) 시에도 빨간색 테두리 대신 파란색 유지 */
+        div.stButton > button:active,
+        div.stButton > button:focus,
+        div.stButton > button:focus:not(:active),
+        div.stFormSubmitButton > button:active,
+        div.stFormSubmitButton > button:focus,
+        div.stFormSubmitButton > button:focus:not(:active),
+        div.stDownloadButton > button:active,
+        div.stDownloadButton > button:focus,
+        button[kind="primary"]:active,
+        button[kind="primary"]:focus,
+        button[kind="secondary"]:active,
+        button[kind="secondary"]:focus {{
+            background-color: #004494 !important;
+            color: #FFFFFF !important;
+            border-color: #003575 !important;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.35) !important;
+        }}
+
+        /* 버튼 내부 텍스트 색상 흰색 고정 */
+        div.stButton > button p,
+        div.stFormSubmitButton > button p,
+        div.stDownloadButton > button p {{
+            color: #FFFFFF !important;
+            font-weight: bold !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -241,7 +297,7 @@ else:
         unsafe_allow_html=True,
     )
 
-# 사이드바: API Key 및 모델 설정 (클라우드 배포 및 로컬 .env 모두 지원)
+# 사이드바: API Key, 모델 설정 및 종료 (Save & Exit) 버튼 배치
 with st.sidebar:
     st.subheader("⚙️ 환경 설정")
     detected_key = collector.get_api_key(st.session_state.custom_api_key)
@@ -269,6 +325,18 @@ with st.sidebar:
     if model_choice != st.session_state.model_name:
         st.session_state.model_name = model_choice
         st.session_state.chat_session = None
+
+    st.write("")
+    # [종료 (Save & Exit) 버튼] - 왼쪽 윈도우 Panel "Gemini 모델 선택" 창 하단에 좌우 창 크기에 맞춰 배치
+    if st.button("종료 (Save & Exit)", key="sidebar_save_exit_btn", type="primary", use_container_width=True):
+        if st.session_state.logged_in:
+            st.toast(
+                f"'{st.session_state.user_id}'님의 모든 영어회화 기록이 저장되었습니다."
+            )
+            st.session_state.current_menu = "영어공부 복습"
+            st.rerun()
+        else:
+            st.warning("로그인 상태에서 영어공부 기록을 저장 및 종료할 수 있습니다.")
 
 
 # ==========================================
@@ -577,14 +645,6 @@ def render_study_view():
                     st.rerun()
                 except Exception as e:
                     st.error(f"API Error - Failed to get response: {str(e)}")
-
-    # 5) [종료 (Save & Exit) 버튼] - 원본 프로그램과 동일하게 제공
-    if st.button("종료 (Save & Exit)", type="primary", use_container_width=True):
-        st.success(
-            f"'{st.session_state.user_id}'님의 모든 영어회화 기록이 '{st.session_state.save_file_path}'에 안전하게 저장되었습니다."
-        )
-        st.session_state.current_menu = "영어공부 복습"
-        st.rerun()
 
 
 # ==========================================
